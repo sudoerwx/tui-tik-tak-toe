@@ -1,0 +1,272 @@
+openapi: 3.0.3
+info:
+  title: Local Tic-Tac-Toe API
+  version: 1.0.0
+  description: REST API for local solo and PvP tic-tac-toe sessions.
+servers:
+  - url: http://localhost:3000
+tags:
+  - name: Games
+paths:
+  /games/solo:
+    post:
+      tags: [Games]
+      summary: Create solo game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSoloGameRequest'
+      responses:
+        '201':
+          description: Solo game created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameState'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /games/pvp:
+    post:
+      tags: [Games]
+      summary: Create PvP game
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePvpGameRequest'
+      responses:
+        '201':
+          description: PvP game created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameState'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /games/pvp/open:
+    get:
+      tags: [Games]
+      summary: List open PvP games
+      responses:
+        '200':
+          description: Open games
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GameState'
+  /games/pvp/{gameId}/join:
+    post:
+      tags: [Games]
+      summary: Join open PvP game
+      parameters:
+        - $ref: '#/components/parameters/GameId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoinPvpGameRequest'
+      responses:
+        '201':
+          description: Joined game
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameState'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /games/{gameId}:
+    get:
+      tags: [Games]
+      summary: Get game by id
+      parameters:
+        - $ref: '#/components/parameters/GameId'
+      responses:
+        '200':
+          description: Game state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameState'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /games/{gameId}/move:
+    post:
+      tags: [Games]
+      summary: Play move
+      parameters:
+        - $ref: '#/components/parameters/GameId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayMoveRequest'
+      responses:
+        '201':
+          description: Move applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GameState'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  parameters:
+    GameId:
+      name: gameId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Request validation or game-rule error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Unauthorized action (wrong turn, invalid password)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Game not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    CreateSoloGameRequest:
+      type: object
+      required: [playerId, clientName]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        clientName:
+          type: string
+    CreatePvpGameRequest:
+      type: object
+      required: [playerId, name]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 3
+          maxLength: 40
+        password:
+          type: string
+          minLength: 3
+          maxLength: 32
+    JoinPvpGameRequest:
+      type: object
+      required: [playerId]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        password:
+          type: string
+          minLength: 3
+          maxLength: 32
+    PlayMoveRequest:
+      type: object
+      required: [playerId, index]
+      properties:
+        playerId:
+          type: string
+          format: uuid
+        index:
+          type: integer
+          minimum: 0
+          maximum: 8
+    GameState:
+      type: object
+      required:
+        - id
+        - mode
+        - name
+        - hostPlayerId
+        - guestPlayerId
+        - board
+        - currentTurn
+        - status
+        - winner
+        - createdAt
+        - updatedAt
+        - hasPassword
+      properties:
+        id:
+          type: string
+          format: uuid
+        mode:
+          type: string
+          enum: [SOLO, PVP]
+        name:
+          type: string
+          nullable: true
+        hostPlayerId:
+          type: string
+          format: uuid
+        guestPlayerId:
+          type: string
+          nullable: true
+        board:
+          type: array
+          minItems: 9
+          maxItems: 9
+          items:
+            nullable: true
+            $ref: '#/components/schemas/PlayerSymbol'
+        currentTurn:
+          $ref: '#/components/schemas/PlayerSymbol'
+        status:
+          type: string
+          enum: [WAITING_FOR_PLAYER, IN_PROGRESS, WON, DRAW]
+        winner:
+          allOf:
+            - $ref: '#/components/schemas/PlayerSymbol'
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        hasPassword:
+          type: boolean
+    PlayerSymbol:
+      type: string
+      enum: [X, O]
+    ErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        error:
+          type: string
