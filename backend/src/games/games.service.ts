@@ -164,6 +164,7 @@ export class GamesService {
 
   private toPublic(game: GameState): PublicGameState {
     // Never expose password in API responses.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _password, ...publicGame } = game;
     return publicGame;
   }
