@@ -1,36 +1,46 @@
+// Importing UI rendering primitives from ratatui crate and our API game model
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
-    Frame,
+    layout::{Alignment, Constraint, Direction, Layout, Rect}, // Layout handles positioning and size of widgets
+    style::{Modifier, Style}, // Style lets us control text formatting like bold
+    text::{Line, Span}, // Line and Span let us create individual styled pieces of text
+    widgets::{Block, Borders, List, ListItem, Paragraph}, // Various UI widgets for display
+    Frame, // Frame is the canvas to render widgets onto
 };
 
-use crate::models::ApiGame;
+use crate::models::ApiGame; // Our own API game type
 
+// Draw the home screen UI. home_index determines which menu item is highlighted.
+/// Draws the main Home screen of the TUI application.
+/// Arguments:
+/// - `frame`: The drawing surface passed in each render cycle. Ratatui's Frame is what you use to render widgets.
+/// - `home_index`: Which menu item to highlight (e.g. user selection).
 pub fn draw_home(frame: &mut Frame<'_>, home_index: usize) {
+    // Layout splits the rendering area vertically using percentage and fixed constraints
     let area = centered_rect(70, 65, frame.area());
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Length(8),
-            Constraint::Length(3),
-            Constraint::Min(1),
+            Constraint::Length(3),    // Title
+            Constraint::Length(8),    // Menu
+            Constraint::Length(3),    // Help area
+            Constraint::Min(1),       // Fills remaining space
         ])
         .split(area);
 
+    // Title with borders and centered alignment
     let title = Paragraph::new("Tic-Tac-Toe (NestJS + Rust TUI)")
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Home"));
     frame.render_widget(title, chunks[0]);
 
+    // Menu items for navigating different modes. ListItem allows custom highlighting.
     let items = ["Solo vs Computer", "PvP", "Exit"];
     let menu_items: Vec<ListItem> = items
         .iter()
         .enumerate()
         .map(|(idx, label)| {
             let line = if idx == home_index {
+                // Highlight selected item with bold and prefix
                 Line::from(vec![Span::styled(
                     format!("> {label}"),
                     Style::default().add_modifier(Modifier::BOLD),
@@ -45,6 +55,7 @@ pub fn draw_home(frame: &mut Frame<'_>, home_index: usize) {
     let list = List::new(menu_items).block(Block::default().borders(Borders::ALL).title("Menu"));
     frame.render_widget(list, chunks[1]);
 
+    // Help paragraph, contains quick instructions for the user
     let help = Paragraph::new(
         "Arrow Up/Down + Enter to select.\nq exits from anywhere.\nPlayer session id is generated once per app launch.",
     )
@@ -52,6 +63,15 @@ pub fn draw_home(frame: &mut Frame<'_>, home_index: usize) {
     frame.render_widget(help, chunks[2]);
 }
 
+/// Draws the main Tic-Tac-Toe gameplay UI.
+/// Arguments:
+/// - `frame`: Drawing surface passed each render cycle.
+/// - `game`: Optionally references the game state (None: no game running).
+/// - `title`: A string used in the UI block title.
+/// - `board_cursor`: Which cell is 'hovered' for input.
+/// - `player_symbol`: The player's game symbol (e.g. 'X' or 'O').
+///
+/// Rust lifetime syntax ('_): Means 'frame' can borrow from its context for as long as needed in this function.
 pub fn draw_game(
     frame: &mut Frame<'_>,
     game: Option<&ApiGame>,
@@ -59,17 +79,20 @@ pub fn draw_game(
     board_cursor: usize,
     player_symbol: String,
 ) {
+    // Use centered_rect to calculate the display area: makes UI responsive to terminal size.
     let area = centered_rect(80, 90, frame.area());
+    // Layout splits this area vertically for different widget blocks
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(4),
-            Constraint::Length(11),
-            Constraint::Length(5),
-            Constraint::Min(1),
+            Constraint::Length(4),     // Header
+            Constraint::Length(11),    // Tic-tac-toe board
+            Constraint::Length(5),     // Controls/hint
+            Constraint::Min(1),        // Fills space
         ])
         .split(area);
 
+    // If game is None, show empty message and return
     let Some(game) = game else {
         frame.render_widget(
             Paragraph::new("No active game.")
@@ -79,6 +102,7 @@ pub fn draw_game(
         return;
     };
 
+    // Status display: shows win, ongoing status, or winner
     let status_line = if game.status == "WON" {
         format!(
             "Status: WON | Winner: {}",
@@ -88,6 +112,7 @@ pub fn draw_game(
         format!("Status: {}", game.status)
     };
 
+    // Render header with game info
     let header = Paragraph::new(format!(
         "Game id: {}\nMode: {} | You are: {} | Current turn: {}\n{}",
         game.id, game.mode, player_symbol, game.current_turn, status_line
@@ -95,6 +120,7 @@ pub fn draw_game(
     .block(Block::default().borders(Borders::ALL).title(title));
     frame.render_widget(header, chunks[0]);
 
+    // Render tic-tac-toe board (uses helper below to make board text)
     let board_text = render_board_text(&game.board, board_cursor);
     let board = Paragraph::new(board_text).block(
         Block::default()
@@ -103,6 +129,7 @@ pub fn draw_game(
     );
     frame.render_widget(board, chunks[1]);
 
+    // Input hint and PvP info
     let hint = Paragraph::new(
         "Controls: Enter/Space = move, b = back, q = exit.\nPvP screen auto-refreshes each second for opponent moves.",
     )
@@ -110,6 +137,15 @@ pub fn draw_game(
     frame.render_widget(hint, chunks[2]);
 }
 
+/// Draws the PvP lobby screen displaying available multiplayer games.
+/// Arguments:
+/// - `frame`: Drawing surface for rendering widgets (see ratatui Frame).
+/// - `pvp_games`: Slice of available game objects for lobby display.
+/// - `selected_index`: Which list item is highlighted (current selection).
+/// - `join_password`: Current password input for joining a game.
+/// - `editing_join_password`: Boolean, true if currently in password editing mode.
+///
+/// This function uses ratatui's List and Paragraph widgets extensively to visualize lobby options and information.
 pub fn draw_pvp_lobby(
     frame: &mut Frame<'_>,
     pvp_games: &[ApiGame],
@@ -174,6 +210,14 @@ pub fn draw_pvp_lobby(
     frame.render_widget(help, chunks[3]);
 }
 
+/// Draws the PvP game creation screen.
+/// Arguments:
+/// - `frame`: Drawing surface for rendering widgets.
+/// - `create_name`: Current name input for new game.
+/// - `create_password`: Current password input for new game.
+/// - `create_field_index`: Which input field is selected (0 for name, 1 for password).
+///
+/// Explains input UX and visual feedback for both fields, including password hiding.
 pub fn draw_pvp_create(
     frame: &mut Frame<'_>,
     create_name: &str,
@@ -223,6 +267,12 @@ pub fn draw_pvp_create(
     );
 }
 
+/// Shows a single informational message popup.
+/// Arguments:
+/// - `frame`: Drawing surface for widgets.
+/// - `info_message`: The text to display.
+///
+/// Uses a simple paragraph block. This can be used for error messages, notifications, etc.
 pub fn draw_info(frame: &mut Frame<'_>, info_message: &str) {
     let area = centered_rect(75, 40, frame.area());
     frame.render_widget(
@@ -249,6 +299,14 @@ pub fn draw_game_over(frame: &mut Frame<'_>, game_over_message: &str) {
     );
 }
 
+/// Constructs a string representation of the tic-tac-toe board for display in the UI.
+/// Arguments:
+/// - `board`: Represents the current board cell values. Each Option<String> is either Some(symbol) or None.
+/// - `board_cursor`: Index (0..8) of the cell currently highlighted/selected.
+/// Returns:
+/// - String: Multi-line string representing the board layout.
+///
+/// This visualization is used for rendering the board in the terminal. Highlighted cells are bracketed.
 fn render_board_text(board: &[Option<String>], board_cursor: usize) -> String {
     // Explicit board mapping to keep control flow easy to follow for beginners.
     let mut rows = Vec::new();
@@ -259,15 +317,16 @@ fn render_board_text(board: &[Option<String>], board_cursor: usize) -> String {
             let idx = r * 3 + c;
             let value = board[idx].as_deref().unwrap_or(" ");
             let label = if board_cursor == idx {
-                format!("[{value}]")
+                format!("[{value}]") // Highlight selected cell with brackets
             } else {
-                format!(" {value} ")
+                format!(" {value} ") // Unselected cell
             };
             cells.push(label);
         }
-        rows.push(cells.join("|"));
+        rows.push(cells.join("|")); // row separator
     }
 
+    // Headers for numeric cell input shortcuts
     format!(
         "{}\n-----------\n{}\n-----------\n{}\n\n1 2 3\n4 5 6\n7 8 9",
         rows[0], rows[1], rows[2]

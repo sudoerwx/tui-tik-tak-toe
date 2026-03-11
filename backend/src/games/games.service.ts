@@ -18,6 +18,12 @@ export class GamesService {
   // If you move to production, replace this with a repository/database layer.
   private readonly games = new Map<string, GameState>();
 
+  /**
+   * Creates a new solo game where the player competes against an AI.
+   *
+   * @param dto - The DTO containing player and game setup information.
+   * @returns Public representation of the newly created game state.
+   */
   createSoloGame(dto: CreateSoloGameDto): PublicGameState {
     const now = new Date().toISOString();
     const game: GameState = {
@@ -40,6 +46,12 @@ export class GamesService {
     return this.toPublic(game);
   }
 
+  /**
+   * Creates a new player-versus-player game.
+   * PVP games are initialized with the creator as the host player, awaiting the guest player.
+   * @param dto - Contains game name, creator player ID, and an optional password.
+   * @returns Public representation of the game state.
+   */
   createPvpGame(dto: CreatePvpGameDto): PublicGameState {
     const now = new Date().toISOString();
     const game: GameState = {
@@ -62,6 +74,14 @@ export class GamesService {
     return this.toPublic(game);
   }
 
+  /**
+   * Lists all open PvP games.
+   * These are the games that are in the WAITING_FOR_PLAYER state,
+   * meaning they have a host but no guest player yet.
+   *
+   * Games are returned in descending order of creation time.
+   * @returns Array of public game states.
+   */
   listOpenPvpGames(): PublicGameState[] {
     const openGames = [...this.games.values()]
       .filter((game) => game.mode === 'PVP' && game.status === 'WAITING_FOR_PLAYER')
@@ -70,6 +90,17 @@ export class GamesService {
     return openGames.map((game) => this.toPublic(game));
   }
 
+  /**
+   * Lets a player join an existing PvP game.
+   *
+   * Validates the game mode, player roles, and passwords, if applicable.
+   * Updates the game status to 'IN_PROGRESS' once the guest player joins.
+   *
+   * @param gameId - The ID of the game to join.
+   * @param dto - The DTO containing player ID and optional password.
+   * @throws BadRequestException | UnauthorizedException
+   * @returns Updated public game state.
+   */
   joinPvpGame(gameId: string, dto: JoinPvpGameDto): PublicGameState {
     const game = this.getExistingGame(gameId);
 
@@ -96,10 +127,26 @@ export class GamesService {
     return this.toPublic(game);
   }
 
+  /**
+   * Retrieves public game details based on the game ID provided.
+   *
+   * @param gameId - The unique identifier for the game to retrieve.
+   * @returns Public representation of the game state.
+   */
   getGame(gameId: string): PublicGameState {
     return this.toPublic(this.getExistingGame(gameId));
   }
 
+  /**
+   * Processes a player's move within a game.
+   * Validates the game status, intended board position, and player turn.
+   * Automatically handles AI moves in solo mode.
+   *
+   * @param gameId - The ID of the game where the move occurs.
+   * @param dto - DTO containing the player's ID and the board index for the move.
+   * @throws BadRequestException | UnauthorizedException
+   * @returns The updated public game state after the move.
+   */
   playMove(gameId: string, dto: PlayMoveDto): PublicGameState {
     const game = this.getExistingGame(gameId);
 
@@ -134,6 +181,12 @@ export class GamesService {
     return this.toPublic(game);
   }
 
+  /**
+   * Updates the game state following a player's move.
+   * Checks for winning conditions, determines if the game is a draw, or sets the next player's turn.
+   *
+   * @param game - The current game state to be updated.
+   */
   private applyPostMoveState(game: GameState): void {
     // This function is pure game-rules logic and does not care about mode.
     // Keeping this split makes it easy to test or reuse in another transport layer.
@@ -153,6 +206,14 @@ export class GamesService {
     game.currentTurn = game.currentTurn === 'X' ? 'O' : 'X';
   }
 
+  /**
+   * Retrieves an existing game from the in-memory store by its ID.
+   * Throws an exception if the game is not found.
+   *
+   * @param gameId - The unique ID of the game.
+   * @returns The complete game state.
+   * @throws NotFoundException if the game is missing.
+   */
   private getExistingGame(gameId: string): GameState {
     const game = this.games.get(gameId);
     if (!game) {
@@ -211,6 +272,13 @@ export class GamesService {
     return fallback;
   }
 
+  /**
+   * Determines if a winning or blocking move is possible for the given symbol.
+   *
+   * @param board - Current state of the game board.
+   * @param symbol - Player's symbol ('X' or 'O') to check for potential finishing moves.
+   * @returns The index of the finishing move, or null if no such move exists.
+   */
   private findFinishingMove(board: (PlayerSymbol | null)[], symbol: PlayerSymbol): number | null {
     for (const [a, b, c] of WINNING_LINES) {
       const line = [board[a], board[b], board[c]];

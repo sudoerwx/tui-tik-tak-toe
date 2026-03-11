@@ -410,8 +410,11 @@ impl App {
     }
 
     fn draw(&self, frame: &mut Frame<'_>) {
+        // Determine the current screen and call the appropriate UI rendering function.
         match self.screen {
+            // Render the Home screen with the selected menu index highlighted.
             Screen::Home => ui::draw_home(frame, self.home_index),
+            // Render the Solo Game screen with game details, mode label, current cursor position, and player's symbol.
             Screen::SoloGame => ui::draw_game(
                 frame,
                 self.solo_game.as_ref(),
@@ -419,6 +422,7 @@ impl App {
                 self.board_cursor,
                 self.player_symbol_for_opt(self.solo_game.as_ref()),
             ),
+            // Render the PvP Lobby screen with available games, selected game index, join password, and editing state.
             Screen::PvpLobby => ui::draw_pvp_lobby(
                 frame,
                 &self.pvp_games,
@@ -426,12 +430,14 @@ impl App {
                 &self.join_password,
                 self.editing_join_password,
             ),
+            // Render the PvP Create screen with the current input values for game name, password, and the focused field.
             Screen::PvpCreate => ui::draw_pvp_create(
                 frame,
                 &self.create_name,
                 &self.create_password,
                 self.create_field_index,
             ),
+            // Render the PvP Game screen with game details, mode label, current cursor position, and player's symbol.
             Screen::PvpGame => ui::draw_game(
                 frame,
                 self.pvp_game.as_ref(),
@@ -439,7 +445,9 @@ impl App {
                 self.board_cursor,
                 self.player_symbol_for_opt(self.pvp_game.as_ref()),
             ),
+            // Render the Game Over screen with the game's result message.
             Screen::GameOver => ui::draw_game_over(frame, &self.game_over_message),
+            // Render the Info screen with the provided informational message.
             Screen::Info => ui::draw_info(frame, &self.info_message),
         }
     }
